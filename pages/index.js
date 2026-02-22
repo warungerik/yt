@@ -5,8 +5,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
 
-  const handleFetch = async () => {
-    if (!url) return alert("Masukkan URL!");
+  const handleDownload = async () => {
+    if (!url) return alert("Masukkan link media!");
     setLoading(true);
     setResult(null);
     try {
@@ -15,54 +15,56 @@ export default function Home() {
       if (data.error) alert(data.error);
       else setResult(data);
     } catch (e) {
-      alert("Gagal memproses video.");
+      alert("Terjadi kesalahan koneksi.");
     }
     setLoading(false);
   };
 
   return (
-    <div style={{ backgroundColor: '#1a1a1a', color: '#fff', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif' }}>
-      <div style={{ maxWidth: '500px', margin: '40px auto', background: '#2d2d2d', padding: '25px', borderRadius: '15px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
+    <div style={{ backgroundColor: '#0f172a', color: '#fff', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif' }}>
+      <div style={{ maxWidth: '600px', margin: '50px auto', background: '#1e293b', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
 
-        <h2 style={{ textAlign: 'center', color: '#ff4757' }}>🚀 Savetube Downloader</h2>
+        <h2 style={{ textAlign: 'center', color: '#38bdf8', marginBottom: '10px' }}>All-in-One Downloader</h2>
+        <p style={{ textAlign: 'center', fontSize: '14px', color: '#94a3b8', marginBottom: '30px' }}>
+          Support: Instagram, TikTok, YouTube, FB, & Twitter
+        </p>
 
-        <div style={{ marginBottom: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <input
             type="text"
-            placeholder="Tempel link YouTube di sini..."
+            placeholder="Tempel link video/reel di sini..."
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: 'none', background: '#3d3d3d', color: '#fff', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '15px', borderRadius: '10px', border: '1px solid #334155', background: '#0f172a', color: '#fff', outline: 'none' }}
           />
           <button
-            onClick={handleFetch}
+            onClick={handleDownload}
             disabled={loading}
-            style={{ width: '100%', marginTop: '10px', padding: '12px', background: '#ff4757', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
+            style={{ padding: '15px', background: '#38bdf8', border: 'none', borderRadius: '10px', color: '#0f172a', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' }}
           >
-            {loading ? 'Sedang Menyiapkan Link...' : 'Dapatkan Link Download'}
+            {loading ? 'Sedang Memproses...' : 'Download Sekarang'}
           </button>
         </div>
 
         {result && (
-          <div style={{ textAlign: 'center' }}>
-            <img src={result.thumbnail} style={{ width: '100%', borderRadius: '10px', marginBottom: '10px' }} />
-            <h4 style={{ marginBottom: '20px', fontSize: '14px' }}>{result.title}</h4>
+          <div style={{ marginTop: '30px', textAlign: 'center' }}>
+            <img src={result.thumbnail} style={{ width: '100%', borderRadius: '15px', marginBottom: '15px', border: '2px solid #334155' }} />
+            <h4 style={{ fontSize: '16px', marginBottom: '20px', color: '#f1f5f9' }}>{result.title}</h4>
 
-            <div style={{ textAlign: 'left', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
-              {result.formats.map((f, i) => (
-                <a key={i} href={f.download} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {result.medias.map((m, i) => (
+                <a key={i} href={m.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center',
-                    background: '#3d3d3d',
-                    padding: '10px 15px',
-                    borderRadius: '8px',
-                    marginBottom: '8px',
-                    border: f.type === 'mp3' ? '1px solid #2ed573' : '1px solid #1e90ff'
+                    padding: '12px 20px',
+                    background: '#334155',
+                    borderRadius: '10px',
+                    color: '#fff',
+                    borderLeft: `4px solid ${m.extension === 'mp3' ? '#fbbf24' : '#22c55e'}`
                   }}>
-                    <span>{f.type.toUpperCase()} - {f.quality}</span>
-                    <span style={{ color: f.type === 'mp3' ? '#2ed573' : '#1e90ff', fontWeight: 'bold' }}>Download</span>
+                    <span>{m.quality} ({m.extension.toUpperCase()})</span>
+                    <span style={{ fontWeight: 'bold' }}>Simpan →</span>
                   </div>
                 </a>
               ))}
@@ -70,6 +72,7 @@ export default function Home() {
           </div>
         )}
       </div>
+      <p style={{ textAlign: 'center', color: '#475569', fontSize: '12px', marginTop: '20px' }}>Powered by Vidssave Scraper 2026</p>
     </div>
   );
 }
