@@ -4,50 +4,47 @@ export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
     const { url, format = 'mp4' } = req.query;
-    const apiKey = 'warungerik'; // API Key Anda
+    const apiKey = 'warungerik';
 
     if (!url) return res.status(400).json({ error: 'URL YouTube diperlukan' });
 
     try {
-        if (format === 'mp4') {
-            // Menggunakan API Autoresbot untuk MP4 agar anti-403
-            const response = await axios.get(`https://api.autoresbot.com/api/downloader/ytmp4?apikey=${apiKey}&url=${encodeURIComponent(url)}`);
-            const result = response.data;
+        // Autoresbot menggunakan endpoint yang berbeda untuk mp4 dan mp3
+        const type = format === 'mp3' ? 'ytmp3' : 'ytmp4';
 
-            if (result.status && result.data) {
-                return res.status(200).json({
-                    title: "YouTube Video",
-                    thumbnail: `https://img.youtube.com/vi/${extractId(url)}/mqdefault.jpg`,
-                    type: 'mp4',
-                    download: result.data.url, // Link uploader autoresbot
-                    size: result.data.size
-                });
-            } else {
-                throw new Error(result.message || 'Gagal mengambil data dari API Autoresbot');
+        const response = await axios.get(`https://api.autoresbot.com/api/downloader/${type}`, {
+            params: {
+                apikey: apiKey,
+                url: url
+            },
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0',
+                'Accept': 'application/json'
             }
+        });
+
+        const result = response.data;
+
+        // Sesuai respons yang kamu kirim: result.status harus true
+        if (result.status && result.data) {
+            return res.status(200).json({
+                title: "WARUNGERIK Download",
+                thumbnail: `https://img.youtube.com/vi/${extractId(url)}/mqdefault.jpg`,
+                type: format,
+                download: result.data.url, // Mengambil data.url dari API
+                size: result.data.size     // Mengambil data.size dari API
+            });
         } else {
-            // Endpoint MP3 (Bisa Anda ganti ke ytmp3 jika Autoresbot menyediakan)
-            const response = await axios.get(`https://api.autoresbot.com/api/downloader/ytmp3?apikey=${apiKey}&url=${encodeURIComponent(url)}`);
-            const result = response.data;
-
-            if (result.status && result.data) {
-                return res.status(200).json({
-                    title: "YouTube Audio",
-                    thumbnail: `https://img.youtube.com/vi/${extractId(url)}/mqdefault.jpg`,
-                    type: 'mp3',
-                    download: result.data.url,
-                    size: result.data.size
-                });
-            } else {
-                throw new Error('Gagal mengonversi MP3');
-            }
+            return res.status(400).json({ error: result.message || "Gagal memproses video" });
         }
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        // Jika API Autoresbot memberikan error (seperti 403), tangkap di sini
+        res.status(err.response?.status || 500).json({
+            error: err.response?.data?.message || "Kesalahan pada API Provider"
+        });
     }
 }
 
-// Helper untuk ambil ID Video
 function extractId(url) {
     const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|embed|watch|shorts)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
     const match = url.match(regex);
