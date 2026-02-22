@@ -41,7 +41,11 @@ export default function Home() {
         <button onClick={handleDownload} disabled={loading} style={{ width: '100%', padding: '15px', backgroundColor: '#fff', color: '#000', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer' }}>
           {loading ? 'PROSES...' : 'DAPATKAN DOWNLOAD'}
         </button>
-
+        <div style={{ marginTop: '30px' }}>
+          <a href="/docs" style={{ color: '#444', textDecoration: 'none', fontSize: '12px', border: '1px solid #222', padding: '5px 15px', borderRadius: '20px' }}>
+            Developer API Documentation & Test Console →
+          </a>
+        </div>
         {result && (
           <div style={{ marginTop: '30px', background: '#111', padding: '20px', borderRadius: '15px', border: '1px solid #ff0000' }}>
             <img src={result.thumbnail} style={{ width: '100%', borderRadius: '10px', marginBottom: '15px' }} alt="thumbnail" />
