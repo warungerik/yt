@@ -9,39 +9,35 @@ export default async function handler(req, res) {
     if (!url) return res.status(400).json({ error: 'URL YouTube diperlukan' });
 
     try {
-        // Autoresbot menggunakan endpoint yang berbeda untuk mp4 dan mp3
-        const type = format === 'mp3' ? 'ytmp3' : 'ytmp4';
+        // Menyesuaikan endpoint berdasarkan pilihan user (ytmp3 atau ytmp4)
+        const endpoint = format === 'mp3' ? 'ytmp3' : 'ytmp4';
 
-        const response = await axios.get(`https://api.autoresbot.com/api/downloader/${type}`, {
+        const response = await axios.get(`https://api.autoresbot.com/api/downloader/${endpoint}`, {
             params: {
                 apikey: apiKey,
                 url: url
             },
             headers: {
-                'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0',
-                'Accept': 'application/json'
+                'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0'
             }
         });
 
         const result = response.data;
 
-        // Sesuai respons yang kamu kirim: result.status harus true
+        // Validasi data berdasarkan respons JSON yang kamu kirim
         if (result.status && result.data) {
             return res.status(200).json({
                 title: "WARUNGERIK Download",
                 thumbnail: `https://img.youtube.com/vi/${extractId(url)}/mqdefault.jpg`,
                 type: format,
-                download: result.data.url, // Mengambil data.url dari API
-                size: result.data.size     // Mengambil data.size dari API
+                download: result.data.url, // URL dari uploader.autoresbot.com
+                size: result.data.size      // Ukuran file dalam bytes
             });
         } else {
-            return res.status(400).json({ error: result.message || "Gagal memproses video" });
+            return res.status(400).json({ error: result.message || "Gagal memproses file" });
         }
     } catch (err) {
-        // Jika API Autoresbot memberikan error (seperti 403), tangkap di sini
-        res.status(err.response?.status || 500).json({
-            error: err.response?.data?.message || "Kesalahan pada API Provider"
-        });
+        res.status(500).json({ error: "Kesalahan pada server API Autoresbot" });
     }
 }
 
