@@ -1,5 +1,5 @@
 {
-    "name": "yt-downloader-vercel",
+    "name": "yt-downloader",
     "version": "1.0.0",
     "scripts": {
         "dev": "next dev",

@@ -1,83 +1,54 @@
 import { useState } from 'react';
 
 export default function Home() {
-  const [url, setUrl] = useState('');
+  const [input, setInput] = useState('');
+  const [format, setFormat] = useState('mp4');
   const [loading, setLoading] = useState(false);
-  const [info, setInfo] = useState(null);
-  const [dlLoading, setDlLoading] = useState(null);
+  const [result, setResult] = useState(null);
 
-  const getInfo = async () => {
-    if (!url) return;
+  const handleDownload = async () => {
     setLoading(true);
-    setInfo(null);
+    setResult(null);
     try {
-      const res = await fetch(`/api/download?url=${encodeURIComponent(url)}`);
+      const res = await fetch(`/api/download?url=${encodeURIComponent(input)}&format=${format}`);
       const data = await res.json();
       if (data.error) alert(data.error);
-      else setInfo(data);
-    } catch (e) { alert("Gagal mengambil data"); }
+      else setResult(data);
+    } catch (e) {
+      alert("Gagal koneksi ke API");
+    }
     setLoading(false);
   };
 
-  const generateLink = async (v_id, type, hash, quality) => {
-    setDlLoading(hash);
-    try {
-      const res = await fetch(`/api/download?url=${v_id}&rel=${v_id}&type=${type}&hash=${hash}`);
-      const data = await res.json();
-      if (data.status === 'ok') {
-        window.open(data.result, '_blank');
-      } else {
-        alert("Gagal membuat link download");
-      }
-    } catch (e) { alert("Error"); }
-    setDlLoading(null);
-  };
-
   return (
-    <div style={{ backgroundColor: '#111', color: '#fff', minHeight: '100vh', padding: '20px', fontFamily: 'system-ui' }}>
+    <div style={{ backgroundColor: '#111', color: '#fff', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif' }}>
       <div style={{ maxWidth: '500px', margin: '0 auto', textAlign: 'center' }}>
-        <h1 style={{ color: '#FF0000' }}>YouTube DL</h1>
-        <div style={{ display: 'flex', gap: '5px', marginBottom: '20px' }}>
-          <input
-            style={{ flex: 1, padding: '12px', borderRadius: '5px', border: 'none' }}
-            placeholder="Tempel Link YouTube..."
-            value={url} onChange={(e) => setUrl(e.target.value)}
-          />
-          <button onClick={getInfo} disabled={loading} style={{ padding: '10px 20px', background: '#FF0000', border: 'none', color: '#fff', borderRadius: '5px', fontWeight: 'bold' }}>
-            {loading ? '...' : 'Cari'}
-          </button>
+        <h1 style={{ color: '#ff0000' }}>YouTube Downloader</h1>
+
+        <input
+          placeholder="Link Video atau Judul..."
+          value={input} onChange={(e) => setInput(e.target.value)}
+          style={{ width: '100%', padding: '12px', borderRadius: '5px', border: 'none', marginBottom: '10px' }}
+        />
+
+        <div style={{ marginBottom: '10px' }}>
+          <button onClick={() => setFormat('mp4')} style={{ padding: '10px', marginRight: '5px', background: format === 'mp4' ? '#f00' : '#444', color: '#fff', border: 'none' }}>MP4</button>
+          <button onClick={() => setFormat('mp3')} style={{ padding: '10px', background: format === 'mp3' ? '#f00' : '#444', color: '#fff', border: 'none' }}>MP3</button>
         </div>
 
-        {info && (
-          <div style={{ background: '#222', padding: '15px', borderRadius: '10px' }}>
-            <img src={info.thumbnail} style={{ width: '100%', borderRadius: '5px' }} />
-            <h3 style={{ fontSize: '16px', margin: '15px 0' }}>{info.title}</h3>
+        <button onClick={handleDownload} disabled={loading} style={{ width: '100%', padding: '12px', background: '#fff', color: '#000', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>
+          {loading ? 'Sabar...' : 'Cari & Download'}
+        </button>
 
-            <div style={{ textAlign: 'left' }}>
-              <p style={{ fontWeight: 'bold', borderBottom: '1px solid #444' }}>Video (MP4)</p>
-              {info.links.mp4.slice(0, 4).map((l) => (
-                <button
-                  key={l.k}
-                  onClick={() => generateLink(info.id, 'mp4', l.k, l.q)}
-                  style={{ width: '100%', padding: '10px', margin: '5px 0', background: '#333', color: '#fff', border: '1px solid #444', borderRadius: '5px', display: 'flex', justifyContent: 'space-between' }}
-                >
-                  <span>{l.q}</span>
-                  <span>{dlLoading === l.k ? 'Tunggu...' : 'Download'}</span>
-                </button>
-              ))}
-
-              <p style={{ fontWeight: 'bold', borderBottom: '1px solid #444', marginTop: '20px' }}>Audio (MP3)</p>
-              {info.links.mp3.map((l) => (
-                <button
-                  key={l.k}
-                  onClick={() => generateLink(info.id, 'mp3', l.k, l.q)}
-                  style={{ width: '100%', padding: '10px', margin: '5px 0', background: '#1e3a2f', color: '#fff', border: 'none', borderRadius: '5px', display: 'flex', justifyContent: 'space-between' }}
-                >
-                  <span>MP3 - {l.q}</span>
-                  <span>{dlLoading === l.k ? 'Tunggu...' : 'Download'}</span>
-                </button>
-              ))}
-            </div>
+        {result && (
+          <div style={{ marginTop: '20px', background: '#222', padding: '15px', borderRadius: '10px' }}>
+            <img src={result.thumbnail} style={{ width: '100%', borderRadius: '5px' }} />
+            <p style={{ margin: '10px 0' }}>{result.title}</p>
+            <a href={result.download} target="_blank" rel="noreferrer">
+              <button style={{ width: '100%', padding: '10px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '5px', fontWeight: 'bold' }}>
+                Klik Simpan {result.type.toUpperCase()} {result.quality || ''}
+              </button>
+            </a>
           </div>
         )}
       </div>
