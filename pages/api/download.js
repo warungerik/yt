@@ -1,73 +1,77 @@
 import axios from 'axios';
+import crypto from 'crypto';
 
-// Fungsi mengekstrak ID YouTube dari URL
-function convertid(url) {
-    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|embed|watch|shorts)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})(?:[&?]|$)/;
-    const match = url.match(regex);
-    return match ? match[1] : null;
-}
+const KEY_SAVETUBE = Buffer.from('C5D58EF67A7584E4A29F6C35BBC4EB12', 'hex');
 
-// Fungsi mencari ID jika input berupa judul/kata kunci
-async function resolveid(input) {
-    const direct = convertid(input);
-    if (direct) return direct;
-
-    const search = await axios.get(`https://test.flvto.online/search/?q=${encodeURIComponent(input)}`, {
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            origin: 'https://v5.ytmp4.is',
-            referer: 'https://v5.ytmp4.is/'
-        }
-    });
-
-    if (!search.data.items || search.data.items.length === 0) throw new Error('Video tidak ditemukan');
-    return search.data.items[0].id;
+function decrypt(enc) {
+    const b = Buffer.from(enc.replace(/\s/g, ''), 'base64');
+    const iv = b.subarray(0, 16);
+    const data = b.subarray(16);
+    const d = crypto.createDecipheriv('aes-128-cbc', KEY_SAVETUBE, iv);
+    return JSON.parse(Buffer.concat([d.update(data), d.final()]).toString());
 }
 
 export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-    const { input, format = 'mp4' } = req.query;
-    if (!input) return res.status(400).json({ error: 'Input diperlukan' });
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: 'URL YouTube diperlukan' });
 
     try {
-        const youtube_id = await resolveid(input);
+        // 1. Dapatkan CDN Random
+        const { data: rd } = await axios.get('https://media.savetube.vip/api/random-cdn', {
+            headers: { origin: 'https://save-tube.com', 'User-Agent': 'Mozilla/5.0' }
+        });
+        const cdn = rd.cdn;
 
-        const { data } = await axios.post('https://ht.flvto.online/converter',
-            { id: youtube_id, fileType: format },
-            {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Content-Type': 'application/json',
-                    origin: 'https://ht.flvto.online'
-                }
-            }
-        );
+        // 2. Dapatkan Info Video
+        const infoRes = await axios.post(`https://${cdn}/v2/info`, { url }, {
+            headers: { 'Content-Type': 'application/json', origin: 'https://save-tube.com' }
+        });
 
-        if (!data || !data.title) throw new Error('Gagal mengonversi video');
+        if (!infoRes.data?.status) throw new Error('Video tidak ditemukan atau tidak didukung');
+        const json = decrypt(infoRes.data.data);
 
-        // Metadata dasar
-        const responseData = {
-            title: data.title,
-            thumbnail: `https://i.ytimg.com/vi/${youtube_id}/mqdefault.jpg`,
-            duration: data.duration,
-            type: format
+        // 3. Fungsi Helper Download
+        const getDlUrl = async (type, quality) => {
+            const r = await axios.post(`https://${cdn}/download`, {
+                id: json.id,
+                key: json.key,
+                downloadType: type,
+                quality: String(quality)
+            }, { headers: { 'Content-Type': 'application/json', origin: 'https://save-tube.com' } });
+            return r.data?.data?.downloadUrl || null;
         };
 
-        if (format === 'mp3') {
-            responseData.download = data.link;
-            responseData.size = data.filesize;
-        } else {
-            // Mengambil semua opsi kualitas MP4 yang tersedia
-            responseData.formats = data.formats.map(f => ({
-                quality: f.qualityLabel,
-                download: f.url,
-                size: f.sizeText || 'N/A'
-            }));
+        // 4. Proses Link Download (Kita ambil semua yang tersedia)
+        const formats = [];
+
+        // Video Formats
+        for (const v of json.video_formats) {
+            formats.push({
+                quality: v.label || v.quality + 'p',
+                type: 'mp4',
+                download: await getDlUrl('video', v.quality)
+            });
         }
 
-        res.status(200).json(responseData);
+        // Audio Formats
+        for (const a of json.audio_formats) {
+            formats.push({
+                quality: a.label || 'Audio ' + a.quality,
+                type: 'mp3',
+                download: await getDlUrl('audio', a.quality)
+            });
+        }
+
+        res.status(200).json({
+            title: json.title,
+            duration: json.duration,
+            thumbnail: json.thumbnail,
+            formats: formats.filter(f => f.download !== null)
+        });
+
     } catch (err) {
-        res.status(500).json({ error: err.message || 'Terjadi kesalahan sistem' });
+        res.status(500).json({ error: err.message });
     }
 }
