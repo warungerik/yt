@@ -1,85 +1,74 @@
 import axios from 'axios';
 
-let jsonCache = null;
-const gB = Buffer.from('ZXRhY2xvdWQub3Jn', 'base64').toString();
-const headers = {
-    origin: 'https://v1.y2mate.nu',
-    referer: 'https://v1.y2mate.nu/',
-    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-    accept: '*/*'
-};
-
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-const ts = () => Math.floor(Date.now() / 1000);
-
-async function getjson() {
-    if (jsonCache) return jsonCache;
-    const { data: html } = await axios.get('https://v1.y2mate.nu', { headers });
-    const m = /var json = JSON\.parse\('([^']+)'\)/.exec(html);
-    if (!m) throw new Error("Gagal mengambil config session");
-    jsonCache = JSON.parse(m[1]);
-    return jsonCache;
+function convertid(url) {
+    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|embed|watch|shorts)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})(?:[&?]|$)/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
 }
 
-function authorization(json) {
-    let e = '';
-    for (let i = 0; i < json[0].length; i++) {
-        e += String.fromCharCode(json[0][i] - json[2][json[2].length - (i + 1)]);
-    }
-    if (json[1]) e = e.split('').reverse().join('');
-    return e.length > 32 ? e.slice(0, 32) : e;
-}
+async function resolveid(input) {
+    const direct = convertid(input);
+    if (direct) return direct;
 
-function extrakid(url) {
-    const m = /youtu\.be\/([a-zA-Z0-9_-]{11})/.exec(url) ||
-        /v=([a-zA-Z0-9_-]{11})/.exec(url) ||
-        /\/shorts\/([a-zA-Z0-9_-]{11})/.exec(url);
-    if (!m) throw new Error('URL YouTube tidak valid');
-    return m[1];
+    const search = await axios.get(`https://test.flvto.online/search/?q=${encodeURIComponent(input)}`, {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36',
+            origin: 'https://v5.ytmp4.is',
+            referer: 'https://v5.ytmp4.is/'
+        }
+    });
+
+    if (!search.data.items || !search.data.items.length) throw new Error('Video tidak ditemukan');
+    return search.data.items[0].id;
 }
 
 export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-    const { url, format = 'mp3' } = req.query;
+    const { input, format = 'mp4' } = req.query;
 
-    if (!url) return res.status(400).json({ error: 'URL diperlukan' });
+    if (!input) return res.status(400).json({ error: 'Input (URL/Judul) diperlukan' });
 
     try {
-        const json = await getjson();
-        const videoId = extrakid(url);
+        const youtube_id = await resolveid(input);
 
-        // Init
-        const key = String.fromCharCode(json[6]);
-        const initUrl = `https://eta.${gB}/api/v1/init?${key}=${authorization(json)}&t=${ts()}`;
-        const { data: initRes } = await axios.get(initUrl, { headers });
-
-        // Convert
-        let { data } = await axios.get(
-            `${initRes.convertURL}&v=${videoId}&f=${format}&t=${ts()}&_=${Math.random()}`,
-            { headers }
+        const converter = await axios.post('https://ht.flvto.online/converter',
+            { id: youtube_id, fileType: format },
+            {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36',
+                    'Content-Type': 'application/json',
+                    origin: 'https://ht.flvto.online',
+                    referer: `https://ht.flvto.online/button?url=https://www.youtube.com/watch?v=${youtube_id}&fileType=${format}`
+                }
+            }
         );
 
-        if (data.redirect === 1 && data.redirectURL) {
-            const r2 = await axios.get(data.redirectURL + '&t=' + ts(), { headers });
-            data = r2.data;
+        const data = converter.data;
+
+        if (format === 'mp3') {
+            return res.status(200).json({
+                title: data.title,
+                type: 'mp3',
+                filesize: data.filesize,
+                download: data.link
+            });
         }
 
-        // Polling jika proses belum selesai
-        if (data.progressURL) {
-            let tries = 0;
-            while (tries < 10) { // Limit 10 kali polling (30 detik) agar tidak timeout di Vercel
-                await sleep(3000);
-                const { data: p } = await axios.get(data.progressURL + '&t=' + ts(), { headers });
-                if (p.progress === 3) {
-                    return res.status(200).json({ title: p.title, download: data.downloadURL });
-                }
-                tries++;
+        if (format === 'mp4') {
+            if (!Array.isArray(data.formats) || !data.formats.length) {
+                throw new Error('Format MP4 tidak tersedia');
             }
-            throw new Error("Proses terlalu lama, silakan coba lagi.");
-        }
+            const sorted = data.formats.sort((a, b) => b.height - a.height);
+            const selected = sorted.find(v => v.qualityLabel === '720p') || sorted[0];
 
-        res.status(200).json({ title: data.title, download: data.downloadURL });
+            return res.status(200).json({
+                title: data.title,
+                type: 'mp4',
+                quality: selected.qualityLabel,
+                download: selected.url
+            });
+        }
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
